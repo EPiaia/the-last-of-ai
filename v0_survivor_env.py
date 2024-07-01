@@ -20,7 +20,7 @@ class SurvivorEnv(gym.Env):
     # render_fps is not used in our env, but we are require to declare a non-zero value.
     metadata = {"render_modes": ["human"], 'render_fps': 4}
 
-    def __init__(self, grid_rows=4, grid_cols=5, render_mode=None):
+    def __init__(self, grid_rows=5, grid_cols=5, render_mode=None):
 
         self.grid_rows=grid_rows
         self.grid_cols=grid_cols
@@ -33,15 +33,9 @@ class SurvivorEnv(gym.Env):
         # Training code can call action_space.sample() to randomly select an action. 
         self.action_space = spaces.Discrete(len(sv.SurvivorAction))
 
-        # Gym requires defining the observation space. The observation space consists of the robot's and target's set of possible positions.
-        # The observation space is used to validate the observation returned by reset() and step().
-        # Use a 1D vector: [robot_row_pos, robot_col_pos, target_row_pos, target_col_pos]
-        self.observation_space = spaces.Box(
-            low=0,
-            high=np.array([self.grid_rows-1, self.grid_cols-1, self.grid_rows-1, self.grid_cols-1]),
-            shape=(4,),
-            dtype=np.int32
-        )
+        self.observation_space = spaces.MultiDiscrete([self.grid_rows, self.grid_cols, len(sv.GridTile), 
+                                                       self.survivor.supplies_amount + 1, len(sv.GridTile), len(sv.GridTile), 
+                                                       len(sv.GridTile), len(sv.GridTile)])
 
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -49,10 +43,6 @@ class SurvivorEnv(gym.Env):
 
         # Reset the WarehouseRobot. Optionally, pass in seed control randomness and reproduce scenarios.
         self.survivor.reset(seed=seed)
-
-        # Construct the observation state:
-        # [robot_row_pos, robot_col_pos, target_row_pos, target_col_pos]
-        obs = np.concatenate((self.survivor.survivor_pos, self.survivor.door_pos))
         
         # Additional info to return. For debugging or whatever.
         info = {}
@@ -62,7 +52,7 @@ class SurvivorEnv(gym.Env):
             self.render()
 
         # Return observation and info
-        return obs, info
+        return self._get_obs(), info
 
     # Gym required function (and parameters) to perform an action
     def step(self, action):
@@ -70,18 +60,18 @@ class SurvivorEnv(gym.Env):
         gridTile = self.survivor.perform_action(sv.SurvivorAction(action))
 
         # Determine reward and termination
-        reward=0
+        reward=-1
         terminated=False
-        if gridTile == sv.GridTile.DOOR.value:
-            reward=1
+        if (gridTile == sv.GridTile.DOOR.value):
+            reward+=-10
+            if (self.survivor.supplies_collected == self.survivor.supplies_amount):
+                reward += 100
             terminated=True
-
-        # Construct the observation state: 
-        # [robot_row_pos, robot_col_pos, target_row_pos, target_col_pos]
-        obs = np.concatenate((self.survivor.survivor_pos, self.survivor.door_pos))
-
-        # Additional info to return. For debugging or whatever.
-        info = {}
+        elif (gridTile == sv.GridTile.ZOMBIE.value):
+           reward+=-100
+           terminated=True
+        elif (gridTile == sv.GridTile.SUPPLY.value):
+           reward+=10
 
         # Render environment
         if(self.render_mode=='human'):
@@ -89,11 +79,54 @@ class SurvivorEnv(gym.Env):
             self.render()
 
         # Return observation, reward, terminated, truncated (not used), info
-        return obs, reward, terminated, False, info
+        return self._get_obs(), reward, terminated, False, {}
 
     # Gym required function to render environment
     def render(self):
         self.survivor.render()
+
+    def _get_obs(self):
+        obs = np.zeros(8, dtype=np.int32)
+
+        x, y = self.survivor.survivor_pos
+
+        obs[0] = x
+        obs[1] = y
+        obs[2] = self._get_grid_value(self.survivor.survivor_pos)
+        obs[3] = self.survivor.supplies_collected
+
+        if (x < self.survivor.grid_rows - 1):
+            obs[4] = self._get_grid_value([x + 1, y])
+        else:
+            obs[4] = -1
+
+        if (x > 0):
+            obs[5] = self._get_grid_value([x - 1, y])
+        else:
+            obs[5] = -1
+
+        if (y < self.survivor.grid_cols - 1):
+            obs[6] = self._get_grid_value([x, y + 1])
+        else:
+            obs[6] = -1
+
+        if (y > 0):
+            obs[7] = self._get_grid_value([x, y - 1])
+        else:
+            obs[7] = -1
+
+        return obs
+    
+    def _get_grid_value(self, position):
+        if (position == self.survivor.survivor_pos):
+            return sv.GridTile.SURVIVOR.value
+        if (position == self.survivor.door_pos):
+            return sv.GridTile.DOOR.value
+        if (position in self.survivor.zombies_pos):
+            return sv.GridTile.ZOMBIE.value
+        if (position in self.survivor.supplies_pos):
+            return sv.GridTile.SUPPLY.value
+        return sv.GridTile._FLOOR.value
 
 # For unit testing
 if __name__=="__main__":

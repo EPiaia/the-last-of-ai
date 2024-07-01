@@ -25,9 +25,11 @@ class GridTile(Enum):
 class Survivor:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=4, grid_cols=5, fps=1):
+    def __init__(self, grid_rows=4, grid_cols=5, fps=1, zombies_amount=1, supplies_amount=1):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
+        self.zombies_amount = zombies_amount
+        self.supplies_amount = supplies_amount
         self.reset()
 
         self.fps = fps
@@ -71,7 +73,7 @@ class Survivor:
 
         file_name = path.join(path.dirname(__file__), "img/ammo.png")
         img = pygame.image.load(file_name)
-        self.ammo_img = pygame.transform.scale(img, self.cell_size) 
+        self.supply_img = pygame.transform.scale(img, self.cell_size) 
 
         file_name = path.join(path.dirname(__file__), "img/door.png")
         img = pygame.image.load(file_name)
@@ -84,10 +86,49 @@ class Survivor:
 
         # Random Target position
         random.seed(seed)
+        #self.door_pos = [
+        #    random.randint(1, self.grid_rows-1),
+        #    random.randint(1, self.grid_cols-1)
+        #]
+
         self.door_pos = [
+            0,
+            4
+        ]
+
+        self.zombies_pos = []
+        '''
+        for i in range(self.zombies_amount):
+            position = self.random_pos()
+            
+            while (position == self.door_pos or position in self.zombies_pos):
+                position = self.random_pos()
+
+            self.zombies_pos.append(position)
+        '''
+
+        self.zombies_pos.append([0, 1])
+        self.zombies_pos.append([1, 1])
+
+        self.supplies_pos = []
+        self.supplies_pos.append([3, 0])
+        #for i in range(self.supplies_amount):
+        #    position = self.random_pos()
+            
+        #    while (position == self.door_pos or position in self.zombies_pos or position in self.supplies_pos):
+        #        position = self.random_pos()
+
+        #    self.supplies_pos.append(position)
+
+        self.supplies_collected = 0
+
+    def random_pos(self):
+        position = [
             random.randint(1, self.grid_rows-1),
             random.randint(1, self.grid_cols-1)
         ]
+
+        return position
 
     def perform_action(self, survivor_action:SurvivorAction) -> int:
         self.last_action = survivor_action
@@ -109,6 +150,13 @@ class Survivor:
         # Return true if Robot reaches Target
         if (self.survivor_pos == self.door_pos):
             return GridTile.DOOR.value
+        elif (self.survivor_pos in self.zombies_pos):
+            self.remove_zombie(self.survivor_pos)
+            return GridTile.ZOMBIE.value
+        elif (self.survivor_pos in self.supplies_pos):
+            self.remove_supply(self.survivor_pos)
+            self.supplies_collected += 1
+            return GridTile.SUPPLY.value
         
         return GridTile._FLOOR.value
 
@@ -121,6 +169,10 @@ class Survivor:
                     print(GridTile.SURVIVOR, end=' ')
                 elif([r,c] == self.door_pos):
                     print(GridTile.DOOR, end=' ')
+                elif([r,c] in self.zombies_pos):
+                    print(GridTile.ZOMBIE, end=' ')
+                elif([r,c] in self.supplies_pos):
+                    print(GridTile.SUPPLY, end=' ')
                 else:
                     print(GridTile._FLOOR, end=' ')
 
@@ -147,6 +199,13 @@ class Survivor:
                 if([r,c] == self.survivor_pos):
                     # Draw robot
                     self.window_surface.blit(self.survivor_img, pos)
+
+                if([r,c] in self.zombies_pos):
+                    self.window_surface.blit(self.zombie_img, pos)
+                
+                if([r,c] in self.supplies_pos):
+                    self.window_surface.blit(self.supply_img, pos)
+
                 
         text_img = self.action_font.render(f'Action: {self.last_action}', True, (0,0,0), (255,255,255))
         text_pos = (0, self.window_size[1] - self.action_info_height)
@@ -171,6 +230,11 @@ class Survivor:
                     pygame.quit()
                     sys.exit()
                 
+    def remove_zombie(self, pos):
+        self.zombies_pos.remove(pos)
+
+    def remove_supply(self, pos):
+        self.supplies_pos.remove(pos)
 
 
 # For unit testing
