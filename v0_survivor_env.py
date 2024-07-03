@@ -18,7 +18,7 @@ class SurvivorEnv(gym.Env):
     # metadata is a required attribute
     # render_modes in our environment is either None or 'human'.
     # render_fps is not used in our env, but we are require to declare a non-zero value.
-    metadata = {"render_modes": ["human"], 'render_fps': 4}
+    metadata = {"render_modes": ["human"], 'render_fps': 5}
 
     def __init__(self, grid_rows=5, grid_cols=5, render_mode=None):
 
@@ -33,9 +33,10 @@ class SurvivorEnv(gym.Env):
         # Training code can call action_space.sample() to randomly select an action. 
         self.action_space = spaces.Discrete(len(sv.SurvivorAction))
 
-        self.observation_space = spaces.MultiDiscrete([self.grid_rows, self.grid_cols, len(sv.GridTile), 
-                                                       self.survivor.supplies_amount + 1, len(sv.GridTile), len(sv.GridTile), 
-                                                       len(sv.GridTile), len(sv.GridTile)])
+        self.observation_space = spaces.MultiDiscrete([grid_rows * grid_cols, self.survivor.supplies_amount + 1])
+
+    def change_render_mode(self, render_mode=None):
+        self.render_mode = render_mode
 
     # Gym required function (and parameters) to reset the environment
     def reset(self, seed=None, options=None):
@@ -46,10 +47,6 @@ class SurvivorEnv(gym.Env):
         
         # Additional info to return. For debugging or whatever.
         info = {}
-
-        # Render environment
-        if(self.render_mode=='human'):
-            self.render()
 
         # Return observation and info
         return self._get_obs(), info
@@ -73,11 +70,6 @@ class SurvivorEnv(gym.Env):
         elif (gridTile == sv.GridTile.SUPPLY.value):
            reward+=10
 
-        # Render environment
-        if(self.render_mode=='human'):
-            print(sv.SurvivorAction(action))
-            self.render()
-
         # Return observation, reward, terminated, truncated (not used), info
         return self._get_obs(), reward, terminated, False, {}
 
@@ -86,34 +78,13 @@ class SurvivorEnv(gym.Env):
         self.survivor.render()
 
     def _get_obs(self):
-        obs = np.zeros(8, dtype=np.int32)
+        obs = np.zeros(2, dtype=np.int32)
 
-        x, y = self.survivor.survivor_pos
+        y, x = self.survivor.survivor_pos
+        pos_val = y * self.grid_rows + x
 
-        obs[0] = x
-        obs[1] = y
-        obs[2] = self._get_grid_value(self.survivor.survivor_pos)
-        obs[3] = self.survivor.supplies_collected
-
-        if (x < self.survivor.grid_rows - 1):
-            obs[4] = self._get_grid_value([x + 1, y])
-        else:
-            obs[4] = -1
-
-        if (x > 0):
-            obs[5] = self._get_grid_value([x - 1, y])
-        else:
-            obs[5] = -1
-
-        if (y < self.survivor.grid_cols - 1):
-            obs[6] = self._get_grid_value([x, y + 1])
-        else:
-            obs[6] = -1
-
-        if (y > 0):
-            obs[7] = self._get_grid_value([x, y - 1])
-        else:
-            obs[7] = -1
+        obs[0] = pos_val
+        obs[1] = self.survivor.supplies_collected
 
         return obs
     
@@ -126,24 +97,8 @@ class SurvivorEnv(gym.Env):
             return sv.GridTile.ZOMBIE.value
         if (position in self.survivor.supplies_pos):
             return sv.GridTile.SUPPLY.value
+        if (position in self.survivor.walls_pos):
+            return sv.GridTile.WALL.value
+        if (position in self.survivor.rocks_pos):
+            return sv.GridTile.ROCK.value
         return sv.GridTile._FLOOR.value
-
-# For unit testing
-if __name__=="__main__":
-    env = gym.make('the-last-of-us-v0', render_mode='human')
-
-    # Use this to check our custom environment
-    # print("Check environment begin")
-    # check_env(env.unwrapped)
-    # print("Check environment end")
-
-    # Reset environment
-    obs = env.reset()[0]
-
-    # Take some random actions
-    while(True):
-        rand_action = env.action_space.sample()
-        obs, reward, terminated, _, _ = env.step(rand_action)
-
-        if(terminated):
-            obs = env.reset()[0]

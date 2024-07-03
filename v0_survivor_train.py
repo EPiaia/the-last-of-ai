@@ -6,8 +6,8 @@ import os
 import pickle
 
 # Parameters for Q-learning
-alpha = 0.1       # Learning rate
-gamma = 0.2       # Discount factor
+alpha = 0.2      # Learning rate
+gamma = 0.9     # Discount factor
 epsilon_min = 0.1 # Minimum exploration rate
 epsilon_decay = 0.995 # Exploration decay rate
 max_steps = 100
@@ -19,9 +19,7 @@ def choose_action(state, env, q_table, epsilon):
     else:
         return np.argmax(q_table[state])  # Exploit
 
-def run_q(episodes, is_training=True, render=False):
-    # Initialize the environment
-    env = gym.make('the-last-of-us-v0', render_mode='human' if render else None)
+def run_q(episodes, env, is_training=True, render=False):
 
     if (is_training):
         # Initialize Q-table
@@ -38,8 +36,6 @@ def run_q(episodes, is_training=True, render=False):
         train_q(episodes, env, q_table)
     else:
         test_q(env, q_table)
-
-    env.close()
 
     if is_training:
         # Save Q Table
@@ -85,14 +81,15 @@ def test_q(env, q_table):
     state = tuple(state)
     total_reward = 0
 
+    env.render()
     for step in range(max_steps):
         action = np.argmax(q_table[state])
         next_state, reward, done, truncated, _ = env.step(action)
         next_state = tuple(next_state)
+        env.render()
         
         state = next_state
         total_reward += reward
-        env.render()
         
         time.sleep(1)
 
@@ -103,6 +100,12 @@ def test_q(env, q_table):
 
 if __name__ == '__main__':
 
+    # Initialize the environment
+    env = gym.make('the-last-of-us-v0')
     # Train/test using Q-Learning
-    # run_q(1000, is_training=True, render=False)
-    run_q(1, is_training=False, render=True)
+    run_q(1000, env, is_training=True, render=False)
+    print("Training finished")
+    time.sleep(5)
+    #env.change_render_mode()
+    run_q(1, env, is_training=False, render=True)
+    env.close()

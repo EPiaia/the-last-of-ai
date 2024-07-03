@@ -17,6 +17,8 @@ class GridTile(Enum):
     ZOMBIE=2
     SUPPLY=3
     DOOR=4
+    WALL=5
+    ROCK=6
 
     # Return the first letter of tile name, for printing to the console.
     def __str__(self):
@@ -25,11 +27,14 @@ class GridTile(Enum):
 class Survivor:
 
     # Initialize the grid size. Pass in an integer seed to make randomness (Targets) repeatable.
-    def __init__(self, grid_rows=4, grid_cols=5, fps=1, zombies_amount=1, supplies_amount=1):
+    def __init__(self, grid_rows=4, grid_cols=5, fps=1, zombies_amount=2, supplies_amount=3, walls_amount=1, rocks_amount=1):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         self.zombies_amount = zombies_amount
         self.supplies_amount = supplies_amount
+        self.walls_amount = walls_amount
+        self.rocks_amount = rocks_amount
+        self.generate_random_map()
         self.reset()
 
         self.fps = fps
@@ -79,25 +84,33 @@ class Survivor:
         img = pygame.image.load(file_name)
         self.door_img = pygame.transform.scale(img, self.cell_size) 
 
+        file_name = path.join(path.dirname(__file__), "img/wall.jpg")
+        img = pygame.image.load(file_name)
+        self.wall_img = pygame.transform.scale(img, self.cell_size) 
+
+        file_name = path.join(path.dirname(__file__), "img/rock.png")
+        img = pygame.image.load(file_name)
+        self.rock_img = pygame.transform.scale(img, self.cell_size) 
+
 
     def reset(self, seed=None):
         # Initialize Robot's starting position
         self.survivor_pos = [0,0]
+        self.supplies_collected = 0
+        self.supplies_pos = []
+        for supply in self.orig_supplies_pos:
+            self.supplies_pos.append(supply)
 
+    def generate_random_map(self, seed=None):
         # Random Target position
         random.seed(seed)
-        #self.door_pos = [
-        #    random.randint(1, self.grid_rows-1),
-        #    random.randint(1, self.grid_cols-1)
-        #]
-
         self.door_pos = [
-            0,
-            4
+            random.randint(1, self.grid_rows-1),
+            random.randint(1, self.grid_cols-1)
         ]
 
         self.zombies_pos = []
-        '''
+
         for i in range(self.zombies_amount):
             position = self.random_pos()
             
@@ -105,22 +118,39 @@ class Survivor:
                 position = self.random_pos()
 
             self.zombies_pos.append(position)
-        '''
-
-        self.zombies_pos.append([0, 1])
-        self.zombies_pos.append([1, 1])
 
         self.supplies_pos = []
-        self.supplies_pos.append([3, 0])
-        #for i in range(self.supplies_amount):
-        #    position = self.random_pos()
+        self.orig_supplies_pos = []
+        for i in range(self.supplies_amount):
+            position = self.random_pos()
             
-        #    while (position == self.door_pos or position in self.zombies_pos or position in self.supplies_pos):
-        #        position = self.random_pos()
+            while (position == self.door_pos or position in self.zombies_pos or position in self.supplies_pos):
+                position = self.random_pos()
 
-        #    self.supplies_pos.append(position)
+            self.supplies_pos.append(position)
+            self.orig_supplies_pos.append(position)
 
         self.supplies_collected = 0
+
+        self.walls_pos = []
+        for i in range(self.walls_amount):
+            position = self.random_pos()
+            
+            while (position == self.door_pos or position in self.zombies_pos or position in self.supplies_pos
+                   or position in self.walls_pos):
+                position = self.random_pos()
+
+            self.walls_pos.append(position)
+        
+        self.rocks_pos = []
+        for i in range(self.rocks_amount):
+            position = self.random_pos()
+            
+            while (position == self.door_pos or position in self.zombies_pos or position in self.supplies_pos
+                   or position in self.walls_pos or position in self.rocks_pos):
+                position = self.random_pos()
+
+            self.rocks_pos.append(position)
 
     def random_pos(self):
         position = [
@@ -132,6 +162,8 @@ class Survivor:
 
     def perform_action(self, survivor_action:SurvivorAction) -> int:
         self.last_action = survivor_action
+
+        last_position = [self.survivor_pos[0], self.survivor_pos[1]]
 
         # Move Robot to the next cell
         if survivor_action == SurvivorAction.LEFT:
@@ -151,34 +183,21 @@ class Survivor:
         if (self.survivor_pos == self.door_pos):
             return GridTile.DOOR.value
         elif (self.survivor_pos in self.zombies_pos):
-            self.remove_zombie(self.survivor_pos)
             return GridTile.ZOMBIE.value
         elif (self.survivor_pos in self.supplies_pos):
             self.remove_supply(self.survivor_pos)
             self.supplies_collected += 1
             return GridTile.SUPPLY.value
+        elif (self.survivor_pos in self.walls_pos):
+            self.survivor_pos = last_position
+            return GridTile.WALL.value
+        elif (self.survivor_pos in self.rocks_pos):
+            self.survivor_pos = last_position
+            return GridTile.ROCK.value
         
         return GridTile._FLOOR.value
 
     def render(self):
-        # Print current state on console
-        for r in range(self.grid_rows):
-            for c in range(self.grid_cols):
-
-                if([r,c] == self.survivor_pos):
-                    print(GridTile.SURVIVOR, end=' ')
-                elif([r,c] == self.door_pos):
-                    print(GridTile.DOOR, end=' ')
-                elif([r,c] in self.zombies_pos):
-                    print(GridTile.ZOMBIE, end=' ')
-                elif([r,c] in self.supplies_pos):
-                    print(GridTile.SUPPLY, end=' ')
-                else:
-                    print(GridTile._FLOOR, end=' ')
-
-            print() # new line
-        print() # new line
-
         self._process_events()
 
         # clear to white background, otherwise text with varying length will leave behind prior rendered portions
@@ -205,6 +224,12 @@ class Survivor:
                 
                 if([r,c] in self.supplies_pos):
                     self.window_surface.blit(self.supply_img, pos)
+                
+                if([r,c] in self.walls_pos):
+                    self.window_surface.blit(self.wall_img, pos)
+                
+                if([r,c] in self.rocks_pos):
+                    self.window_surface.blit(self.rock_img, pos)
 
                 
         text_img = self.action_font.render(f'Action: {self.last_action}', True, (0,0,0), (255,255,255))
@@ -229,22 +254,6 @@ class Survivor:
                 if(event.key == pygame.K_ESCAPE):
                     pygame.quit()
                     sys.exit()
-                
-    def remove_zombie(self, pos):
-        self.zombies_pos.remove(pos)
 
     def remove_supply(self, pos):
         self.supplies_pos.remove(pos)
-
-
-# For unit testing
-if __name__=="__main__":
-    survivor = Survivor()
-    survivor.render()
-
-    while(True):
-        rand_action = random.choice(list(SurvivorAction))
-        print(rand_action)
-
-        survivor.perform_action(rand_action)
-        survivor.render()
