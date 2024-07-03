@@ -101,7 +101,7 @@ def test_q(env, q_table):
 if __name__ == '__main__':
 
     # Initialize the environment
-    env = gym.make('the-last-of-us-v0')
+    env = gym.make('the-last-of-us-v0', render_mode='human', grid_rows=10, grid_cols=10, zombies_amount=7, supplies_amount=4, walls_amount=3, rocks_amount=3)
     # Train/test using Q-Learning
     run_q(1000, env, is_training=True, render=False)
     print("Training finished")

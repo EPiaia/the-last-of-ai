@@ -20,14 +20,14 @@ class SurvivorEnv(gym.Env):
     # render_fps is not used in our env, but we are require to declare a non-zero value.
     metadata = {"render_modes": ["human"], 'render_fps': 5}
 
-    def __init__(self, grid_rows=5, grid_cols=5, render_mode=None):
+    def __init__(self, grid_rows=5, grid_cols=5, render_mode=None, zombies_amount=2, supplies_amount=3, walls_amount=1, rocks_amount=1):
 
         self.grid_rows=grid_rows
         self.grid_cols=grid_cols
         self.render_mode = render_mode
 
         # Initialize the WarehouseRobot problem
-        self.survivor = sv.Survivor(grid_rows=grid_rows, grid_cols=grid_cols, fps=self.metadata['render_fps'])
+        self.survivor = sv.Survivor(grid_rows=grid_rows, grid_cols=grid_cols, fps=self.metadata['render_fps'], zombies_amount=zombies_amount, supplies_amount=supplies_amount, walls_amount=walls_amount, rocks_amount=rocks_amount)
 
         # Gym requires defining the action space. The action space is robot's set of possible actions.
         # Training code can call action_space.sample() to randomly select an action. 
